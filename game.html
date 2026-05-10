@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>종합 암산 & 수학 훈련</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            background-color: #f8f9fa;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            overflow: hidden; user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #app-container { text-align: center; width: 100%; max-width: 600px; padding: 20px; }
+
+        /* 메뉴 화면 (항목이 늘어나서 간격/패딩 약간 축소) */
+        #menu-view { display: flex; flex-direction: column; gap: 12px; }
+        .menu-item {
+            font-size: 1.4rem; font-weight: 800; color: #2c3e50;
+            cursor: pointer; padding: 16px; background: white;
+            border-radius: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        .menu-item:active { transform: scale(0.98); background-color: #ecf0f1; }
+
+        /* 공통 UI */
+        .hidden { display: none !important; }
+        .title-text { font-size: 1.2rem; color: #7f8c8d; margin-bottom: 20px; }
+        
+        input[type="number"] {
+            font-size: 2.5rem; padding: 15px; width: 80%; max-width: 250px;
+            border: 3px solid #bdc3c7; border-radius: 15px;
+            text-align: center; outline: none; transition: border-color 0.3s;
+            font-family: inherit; appearance: none; -webkit-appearance: none;
+        }
+        input[type="number"]:focus { border-color: #3498db; }
+        
+        /* 덧셈(플래시) 전용 */
+        .top-score { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); font-size: 1.8rem; font-weight: 800; color: #333; }
+        #add-display-area { font-size: 12rem; font-weight: 900; color: #1a1a1a; }
+
+        /* 타임어택(곱셈/방정식) 전용 */
+        #live-timer { font-size: 3rem; font-weight: 900; color: #e67e22; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+        #timed-problem { font-weight: 900; color: #2c3e50; margin-bottom: 20px; word-break: keep-all; transition: font-size 0.2s; }
+        #timed-progress { font-size: 1.1rem; color: #95a5a6; margin-bottom: 10px; font-weight: bold; }
+        #timed-feedback { font-size: 1.3rem; color: #e74c3c; font-weight: bold; height: 30px; margin-top: 15px; }
+
+        /* 자릿수 암기 전용 */
+        #mem-status-bar { position: absolute; top: 30px; left: 0; right: 0; font-size: 1.3rem; font-weight: 800; color: #333; }
+        #mem-display { font-size: 8rem; font-weight: 900; color: #1a1a1a; margin-bottom: 20px; min-height: 1.2em; }
+        .skip-btn { margin-top: 20px; font-size: 1.2rem; color: #95a5a6; cursor: pointer; text-decoration: underline; }
+        .combo-badge { color: #e67e22; font-size: 1.1rem; font-weight: bold; margin-top: 5px; min-height: 1.5em; }
+        #mem-feedback { font-size: 2.5rem; font-weight: bold; color: #2ecc71; margin-bottom: 20px; }
+
+        /* 결과 화면 */
+        #result-view { cursor: pointer; }
+        .result-main { font-size: 2.5rem; font-weight: 800; color: #2c3e50; margin-bottom: 10px; }
+        .result-sub { font-size: 1.2rem; color: #7f8c8d; }
+        .correct { color: #2ecc71; }
+        .wrong { color: #e74c3c; }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <!-- 1. 메인 메뉴 -->
+        <div id="menu-view">
+            <div class="menu-item" onclick="startFlashAdd()">한 자릿수 덧셈 (플래시)</div>
+            <div class="menu-item" onclick="startMemoryAdd(2)">두 자릿수 암기 덧셈 (90초)</div>
+            <div class="menu-item" onclick="startMemoryAdd(3)">세 자릿수 암기 덧셈 (90초)</div>
+            <div class="menu-item" onclick="startTimedMode('MULTIPLICATION')">두 자릿수 곱셈</div>
+            <div class="menu-item" onclick="startTimedMode('EQUATION')">일차방정식 (심화)</div>
+        </div>
+
+        <!-- 2. 한 자릿수 덧셈 (플래시) 뷰 -->
+        <div id="add-view" class="hidden" onclick="stopFlashAdd()">
+            <div id="add-score-display" class="top-score">점수: 0</div>
+            <div id="add-display-area"></div>
+            <div class="title-text" style="margin-top:20px;">화면 터치 시 중단 (PC는 스페이스)</div>
+        </div>
+        <div id="add-input-view" class="hidden">
+            <div class="title-text">총합 입력 후 '이동' 또는 '엔터'</div>
+            <form onsubmit="handleFlashAddSubmit(event)">
+                <input type="number" id="add-answer-input" inputmode="numeric" pattern="\d*">
+            </form>
+        </div>
+
+        <!-- 3. 타임어택 (곱셈/방정식) 뷰 -->
+        <div id="timed-view" class="hidden">
+            <div id="live-timer">0.0초</div>
+            <div id="timed-progress">1 / 3 문제</div>
+            <div id="timed-problem">00 × 00</div>
+            <form onsubmit="handleTimedSubmit(event)">
+                <input type="number" id="timed-answer-input" inputmode="numeric" pattern="[0-9-]*">
+            </form>
+            <div id="timed-feedback"></div>
+        </div>
+
+        <!-- 4. 암기 덧셈 (두 자릿수 / 세 자릿수 공용) 뷰 -->
+        <div id="memory-view" class="hidden">
+            <div id="mem-status-bar">점수: 0 | 남은 시간: 90초</div>
+            <div id="mem-feedback" class="hidden">정답!</div>
+            <div id="mem-display"></div>
+            <div id="mem-info" class="title-text">준비...</div>
+            
+            <div id="mem-input-area" class="hidden">
+                <form onsubmit="handleMemorySubmit(event)">
+                    <input type="number" id="mem-answer-input" inputmode="numeric" pattern="\d*">
+                </form>
+                <div class="skip-btn" onclick="skipMemoryRound()">건너뛰기</div>
+                <div id="mem-combo-display" class="combo-badge"></div>
+            </div>
+        </div>
+
+        <!-- 5. 결과 화면 -->
+        <div id="result-view" class="hidden" onclick="returnToMenu()">
+            <div id="result-text" class="result-main"></div>
+            <div class="result-sub">화면을 터치하면 메인으로 돌아갑니다</div>
+        </div>
+    </div>
+
+    <script>
+        // --- 뷰 관리 (화면 전환) ---
+        const views = {
+            menu: document.getElementById('menu-view'),
+            addPlay: document.getElementById('add-view'),
+            addInput: document.getElementById('add-input-view'),
+            timed: document.getElementById('timed-view'),
+            memory: document.getElementById('memory-view'),
+            result: document.getElementById('result-view')
+        };
+        
+        let currentState = 'MENU';
+        
+        function switchView(viewName) {
+            Object.values(views).forEach(v => v.classList.add('hidden'));
+            if(views[viewName]) views[viewName].classList.remove('hidden');
+        }
+
+        function returnToMenu() {
+            currentState = 'MENU';
+            switchView('menu');
+        }
+
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+        // ==========================================
+        // 모드 1: 한 자릿수 덧셈 (플래시 암산)
+        // ==========================================
+        let flashScore = 0, flashTotal = 0, flashInterval, flashTimeout;
+        const addScoreDisplay = document.getElementById('add-score-display');
+        const addDisplay = document.getElementById('add-display-area');
+        const addInput = document.getElementById('add-answer-input');
+
+        function startFlashAdd() {
+            currentState = 'ADD_PLAY';
+            flashScore = 0; flashTotal = 0;
+            addScoreDisplay.innerText = `점수: 0`;
+            switchView('addPlay');
+            nextFlashNumber();
+            flashInterval = setInterval(nextFlashNumber, 1000);
+        }
+
+        function nextFlashNumber() {
+            const rand = Math.floor(Math.random() * 9) + 1;
+            flashTotal += rand;
+            flashScore++;
+            addScoreDisplay.innerText = `점수: ${flashScore}`;
+            addDisplay.innerText = rand;
+            flashTimeout = setTimeout(() => { addDisplay.innerText = ''; }, 800);
+        }
+
+        function stopFlashAdd() {
+            if (currentState !== 'ADD_PLAY') return;
+            currentState = 'ADD_INPUT';
+            clearInterval(flashInterval);
+            clearTimeout(flashTimeout);
+            switchView('addInput');
+            addInput.value = '';
+            setTimeout(() => addInput.focus(), 100);
+        }
+
+        function handleFlashAddSubmit(e) {
+            e.preventDefault();
+            if (addInput.value === '') return;
+            currentState = 'RESULT';
+            const userAnswer = parseInt(addInput.value);
+            const resText = document.getElementById('result-text');
+            if (userAnswer === flashTotal) {
+                resText.innerHTML = `<span class="correct">정답!</span><br>기록: ${flashScore}점`;
+            } else {
+                resText.innerHTML = `<span class="wrong">오답!</span><br>실제 정답: ${flashTotal}`;
+            }
+            switchView('result');
+        }
+
+        // ==========================================
+        // 모드 2 & 3: 타임어택 (곱셈 / 방정식)
+        // ==========================================
+        let timedMode = '', timedRound = 1, timedTimes = [], maxRounds = 3;
+        let timedStartTime = 0, penaltyTime = 0, currentAnswer = 0, timerInterval;
+        const timedProblem = document.getElementById('timed-problem');
+        const timedInput = document.getElementById('timed-answer-input');
+        const timedProgress = document.getElementById('timed-progress');
+        const timedFeedback = document.getElementById('timed-feedback');
+        const liveTimer = document.getElementById('live-timer');
+
+        function startTimedMode(mode) {
+            currentState = 'TIMED_PLAY';
+            timedMode = mode;
+            timedRound = 1; 
+            timedTimes = [];
+            maxRounds = (mode === 'MULTIPLICATION') ? 3 : 10;
+            switchView('timed');
+            nextTimedRound();
+        }
+
+        function updateLiveTimer() {
+            const elapsed = ((Date.now() - timedStartTime) / 1000) + penaltyTime;
+            liveTimer.innerText = `${elapsed.toFixed(1)}초`;
+        }
+
+        function nextTimedRound() {
+            penaltyTime = 0;
+            timedProgress.innerText = `${timedRound} / ${maxRounds} 문제`;
+            timedInput.value = '';
+            timedFeedback.innerText = '';
+            
+            if (timedMode === 'MULTIPLICATION') {
+                timedProblem.style.fontSize = '4.5rem';
+                const a = Math.floor(Math.random() * 90) + 10;
+                const b = Math.floor(Math.random() * 90) + 10;
+                currentAnswer = a * b;
+                timedProblem.innerText = `${a} × ${b}`;
+            } else {
+                timedProblem.style.fontSize = '2.8rem';
+                const x = Math.floor(Math.random() * 19) - 9; 
+                let a = Math.floor(Math.random() * 8) + 2; 
+                let c = Math.floor(Math.random() * 8) + 2;
+                while (a === c) c = Math.floor(Math.random() * 8) + 2;
+                const b = Math.floor(Math.random() * 41) - 20; 
+                const d = (a * x) + b - (c * x);
+                const leftSide = `${a}x ${b >= 0 ? '+ ' + b : '- ' + Math.abs(b)}`;
+                const rightSide = `${c}x ${d >= 0 ? '+ ' + d : '- ' + Math.abs(d)}`;
+                timedProblem.innerText = `${leftSide} = ${rightSide}`;
+                currentAnswer = x;
+            }
+
+            timedStartTime = Date.now();
+            clearInterval(timerInterval);
+            timerInterval = setInterval(updateLiveTimer, 100);
+            setTimeout(() => timedInput.focus(), 100);
+        }
+
+        function handleTimedSubmit(e) {
+            e.preventDefault();
+            if (timedInput.value === '') return;
+            const userAnswer = parseInt(timedInput.value);
+            if (isNaN(userAnswer)) return;
+
+            if (userAnswer === currentAnswer) {
+                clearInterval(timerInterval);
+                const timeTaken = ((Date.now() - timedStartTime) / 1000) + penaltyTime;
+                timedTimes.push(timeTaken);
+                
+                if (timedRound >= maxRounds) {
+                    currentState = 'RESULT';
+                    const avg = (timedTimes.reduce((a, b) => a + b, 0) / maxRounds).toFixed(2);
+                    document.getElementById('result-text').innerHTML = `평균 기록: <span class="correct">${avg}초</span>`;
+                    switchView('result');
+                } else {
+                    timedRound++;
+                    nextTimedRound();
+                }
+            } else {
+                penaltyTime += 5;
+                updateLiveTimer();
+                timedInput.value = '';
+                timedFeedback.innerText = '+5초 페널티!';
+                setTimeout(() => { timedFeedback.innerText = ''; }, 1000);
+            }
+        }
+
+        // ==========================================
+        // 모드 4 & 5: 자릿수 암기 덧셈 (90초)
+        // ==========================================
+        let memScore = 0, memTimeLeft = 90, memCombo = 0, memAns = 0, memDigits = 2;
+        let memGlobalTimer, memSequenceActive = false;
+        const memDisplay = document.getElementById('mem-display');
+        const memInfo = document.getElementById('mem-info');
+        const memInputArea = document.getElementById('mem-input-area');
+        const memInput = document.getElementById('mem-answer-input');
+        const memStatusBar = document.getElementById('mem-status-bar');
+        const memComboDisplay = document.getElementById('mem-combo-display');
+        const memFeedback = document.getElementById('mem-feedback');
+
+        // digits에 따라 2(두 자릿수) 또는 3(세 자릿수) 설정
+        function startMemoryAdd(digits) {
+            currentState = 'MEMORY_PLAY';
+            memDigits = digits; 
+            memScore = 0; memCombo = 0; memTimeLeft = 90; // 90초로 변경
+            switchView('memory');
+            updateMemStatus();
+            
+            memGlobalTimer = setInterval(() => {
+                memTimeLeft--;
+                updateMemStatus();
+                if (memTimeLeft <= 0) endMemoryAdd();
+            }, 1000);
+            
+            runMemorySequence();
+        }
+
+        function updateMemStatus() {
+            memStatusBar.innerText = `점수: ${memScore} | 남은 시간: ${memTimeLeft}초`;
+        }
+
+        function updateMemCombo() {
+            if (memCombo >= 10) memComboDisplay.innerText = "🔥 무아지경 (3점씩!)";
+            else if (memCombo >= 3) memComboDisplay.innerText = "⚡ 콤보 중 (2점씩!)";
+            else memComboDisplay.innerText = "";
+        }
+
+        async function runMemorySequence() {
+            if (currentState !== 'MEMORY_PLAY') return;
+            memSequenceActive = true;
+            
+            memInputArea.classList.add('hidden');
+            memFeedback.classList.add('hidden');
+            memDisplay.innerText = '';
+            memInfo.innerText = '준비...';
+            
+            await sleep(500); 
+            if (currentState !== 'MEMORY_PLAY') return;
+            
+            // 자릿수에 따른 랜덤 숫자 범위 설정 (2자리: 10~99, 3자리: 100~999)
+            const minNum = Math.pow(10, memDigits - 1); 
+            const range = 9 * minNum; 
+            
+            const n1 = Math.floor(Math.random() * range) + minNum;
+            memDisplay.innerText = n1;
+            memInfo.innerText = '첫 번째 숫자';
+            await sleep(500); 
+            
+            memDisplay.innerText = '';
+            await sleep(500); 
+            
+            const n2 = Math.floor(Math.random() * range) + minNum;
+            memDisplay.innerText = n2;
+            memInfo.innerText = '두 번째 숫자';
+            await sleep(500); 
+            
+            memDisplay.innerText = '?';
+            memInfo.innerText = '두 숫자의 합은?';
+            memAns = n1 + n2;
+            
+            memInputArea.classList.remove('hidden');
+            memInput.value = '';
+            updateMemCombo();
+            memSequenceActive = false;
+            setTimeout(() => memInput.focus(), 100);
+        }
+
+        function skipMemoryRound() {
+            if(memSequenceActive) return;
+            memCombo = 0; 
+            runMemorySequence();
+        }
+
+        async function handleMemorySubmit(e) {
+            e.preventDefault();
+            if (memSequenceActive || memInput.value === '') return;
+            
+            const val = parseInt(memInput.value);
+            if(isNaN(val)) return;
+
+            if (val === memAns) {
+                memCombo++;
+                let gain = 1;
+                if (memCombo >= 10) gain = 3;
+                else if (memCombo >= 3) gain = 2;
+                memScore += gain;
+                updateMemStatus();
+                
+                memInputArea.classList.add('hidden');
+                memDisplay.innerText = '';
+                memInfo.innerText = '';
+                memFeedback.innerText = `정답! (+${gain}점)`;
+                memFeedback.classList.remove('hidden');
+                
+                await sleep(600); 
+                runMemorySequence();
+            } else {
+                memCombo = 0;
+                updateMemCombo();
+                memInput.value = '';
+                memInput.style.borderColor = '#e74c3c';
+                setTimeout(() => memInput.style.borderColor = '#bdc3c7', 300);
+            }
+        }
+
+        function endMemoryAdd() {
+            clearInterval(memGlobalTimer);
+            currentState = 'RESULT';
+            document.getElementById('result-text').innerHTML = `최종 점수: <span class="correct">${memScore}점</span>`;
+            switchView('result');
+        }
+
+        // --- PC 스페이스바 중단 대응 ---
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && currentState === 'ADD_PLAY') {
+                e.preventDefault();
+                stopFlashAdd();
+            }
+        });
+    </script>
+</body>
+</html>
